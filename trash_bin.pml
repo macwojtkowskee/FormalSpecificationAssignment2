@@ -138,19 +138,19 @@ proctype bin(byte bin_id) {
 			}
 			bin_changed!LockOuterDoor, true;
 		fi
-	:: change_bin?LockOuterDoor, open ->
+	:: change_bin?LockOuterDoor, open -> //TODO
 		if
 		:: bin_status.lock_out_door == closed && bin_status.out_door == closed ->
 			bin_status.lock_out_door = open;
 			bin_changed!LockOuterDoor, true;
 		fi
 	// Trap door
-	:: weigh_trash?true ->
+	:: weigh_trash?true -> //TODO: Controller must send true through the weigh_trash channel
 		if
 		:: bin_status.trap_door == closed ->
 			trash_weighted!bin_status.trash_on_trap_door;
 		fi
-	:: change_bin?TrapDoor, closed ->
+	:: change_bin?TrapDoor, closed -> //TODO: Controller must send appropriate trapDoor ACKs.
 		if
 		:: bin_status.trap_door == open && bin_status.ram == idle ->
 			bin_status.trap_door = closed;
@@ -176,7 +176,7 @@ proctype bin(byte bin_id) {
 			bin_changed!TrapDoor, true;
 		fi
 	// Vertical ram
-	:: change_ram?compress ->
+	:: change_ram?compress -> //TODO: Ram control through controller.
 		if
 		:: bin_status.ram == idle ->
 			atomic {
@@ -200,7 +200,7 @@ proctype bin(byte bin_id) {
 			ram_changed!true;
 		fi
 	// Emptying through trash truck
-	:: empty_bin?true ->
+	:: empty_bin?true -> //TODO: Communicate to controller that trash needs emptying.
 		if
 		:: bin_status.out_door == closed && bin_status.lock_out_door == closed && bin_status.ram == idle ->
 			atomic {
@@ -284,7 +284,20 @@ proctype main_control() {
 	byte user_id;
 	do
 	:: scan_card_user?user_id ->
-		skip;
+		//Verification of user card, and sending back whether or not ID is valid.
+		check_user!user_id;
+		user_valid?user_id;
+		if
+		:: user_valid ->
+			atomic{
+			if 
+			:: !bin_status.full_capacity ->
+				can_deposit_trash!user_id, true;
+				change_bin!LockOuterDoor, open;
+				change_bin!LockOuterDoor, true;
+			fi
+			}
+		fi
 	od
 }
 

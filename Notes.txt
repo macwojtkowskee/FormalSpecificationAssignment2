@@ -1,0 +1,38 @@
+Channels:
+Controller/System:
+change_bin - asynchronous, two-mtype variables of pos (closed/open) and comp (OuterDoor, LockOuterDoor, TrapDoor)
+bin_changed - synchronous, channel for acknowledgments; hence of type comp (specifying which door component has been changed) 
+    + boolean value designating if something has been changed.
+user_closed_outer_door - synchronous, acknowledgments for locking the lock.
+weigh_trash - synchronous, bool (if true)
+trash_weighted - synchronous, bool
+
+
+User/Controller:
+scan_card_user - consists of a number ID, the reader accepts all numbers except for 42
+can_deposit_trash
+
+
+Controller/Server:
+check_user
+user_valid
+
+Server/Truck:
+request_truck - vu
+change_truck
+
+Bin/Controller/Truck
+empty_bin
+bin_emptied - has to be set to false before issuing command for emptying bin
+
+Abstract behaviour:
+1. User/Controller Card Verification:
+1.1. User scans card, and a message to check if the card is valid is sent to the controller. [x]
+1.2. Controller waits for User's message of checkID, and once it obtains the id, it sends it as a checkID message to Server [x]
+1.3. Controller waits for and receives verification of whether or not user ID is valid, and proceeds to step 2 [x]
+
+2. User/Controller Weight-based door opening.
+2.1. Controller checks the weight status of the bin, and accordingly sends a message to the user [x]
+2.2. 
+
+controller must lock after a single open/close movement from the user (user_closed_outer_door!true;)
