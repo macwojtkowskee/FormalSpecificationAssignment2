@@ -138,19 +138,19 @@ proctype bin(byte bin_id) {
 			}
 			bin_changed!LockOuterDoor, true;
 		fi
-	:: change_bin?LockOuterDoor, open -> //TODO
+	:: change_bin?LockOuterDoor, open ->
 		if
 		:: bin_status.lock_out_door == closed && bin_status.out_door == closed ->
 			bin_status.lock_out_door = open;
 			bin_changed!LockOuterDoor, true;
 		fi
 	// Trap door
-	:: weigh_trash?true -> //TODO: Controller must send true through the weigh_trash channel
+	:: weigh_trash?true ->
 		if
 		:: bin_status.trap_door == closed ->
 			trash_weighted!bin_status.trash_on_trap_door;
 		fi
-	:: change_bin?TrapDoor, closed -> //TODO: Controller must send appropriate trapDoor ACKs.
+	:: change_bin?TrapDoor, closed -> 
 		if
 		:: bin_status.trap_door == open && bin_status.ram == idle ->
 			bin_status.trap_door = closed;
@@ -235,7 +235,13 @@ proctype truck() {
 	byte bin_id;
 	do
 	:: request_truck?bin_id ->
-		skip;
+		// Drive to the trash bin
+		change_truck!arrived, bin_id;
+		// Empty the trash bin
+		if 
+		:: change_truck?start_emptying, bin_id ->
+			change_truck!emptied, bin_id;
+		fi
 	od
 }
 
@@ -243,6 +249,7 @@ proctype truck() {
 // User process type.
 // The user tries to deposit trash.
 proctype user(byte user_id; byte trash_size) {
+	byte bin_id;
 	do
 	// Get another bag of trash
 	:: !has_trash ->
@@ -282,11 +289,14 @@ proctype user(byte user_id; byte trash_size) {
 // Remodel it to control the trash bin system and handle requests by users!
 proctype main_control() {
 	byte user_id;
+	// TODO: more bins!!
+	byte bin_id;
 	do
 	:: scan_card_user?user_id ->
 		//Verification of user card, and sending back whether or not ID is valid.
 		check_user!user_id;
 		user_valid?user_id;
+		//Open the door if the max capacity is not reached and the user ID is valid.
 		if
 		:: user_valid ->
 			atomic{
@@ -294,9 +304,52 @@ proctype main_control() {
 			:: !bin_status.full_capacity ->
 				can_deposit_trash!user_id, true;
 				change_bin!LockOuterDoor, open;
-				change_bin!LockOuterDoor, true;
 			fi
 			}
+		fi
+	//Lock the outer door after a single open/close action from the user
+	:: user_closed_outer_door?true ->
+		change_bin!LockOuterDoor, closed;
+		bin_changed?LockOuterDoor, true;
+	
+	//If the outer door has been locked, then we can weigh the trash
+	:: bin_status.lock_out_door == closed ->
+		weigh_trash!true;
+		
+	//Logic is handled by the bin; the controller sends trap door isntructions.
+	:: trash_weighted?bin_status.trash_on_trap_door ->
+		if 
+		::bin_changed?TrapDoor, true ->
+			change_bin!TrapDoor, open;
+			if 
+			:: bin_changed?TrapDoor, true ->
+				change_ram!compress;		
+				if
+				::ram_changed?true ->
+					change_ram!idle;
+					if
+					::ram_changed?true ->
+						change_bin!TrapDoor, closed;
+						if
+							:: bin_status.trash_compressed >= max_capacity ->
+								bin_status.full_capacity = true;
+						fi
+					fi
+				fi
+			fi
+		fi
+
+	//Truck controller
+	:: bin_status.full_capacity ->
+		request_truck!!bin_id;
+		if
+		:: change_truck?arrived ->
+			change_truck!start_emptying;
+			if 
+			::change_truck?emptied->
+				bin_status.full_capacity = false;
+				empty_bin!true;
+			fi
 		fi
 	od
 }
