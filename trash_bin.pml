@@ -67,7 +67,7 @@ bool has_trash;
 
 // CHANNELS
 // Asynchronous channel to give command to doors and lock
-chan change_bin = [1] of { mtype:comp, mtype:pos };
+chan change_bin = [2] of { mtype:comp, mtype:pos };
 // Synchronous channel to acknowledge change in bin
 chan bin_changed = [0] of { mtype:comp, bool };
 // Synchronous channel to indicate that user closed the door
@@ -284,37 +284,35 @@ proctype user(byte user_id; byte trash_size) {
 	od
 }
 
-
-// DUMMY main control process type.
-// Remodel it to control the trash bin system and handle requests by users!
+//Main controller process for co-ordinating user-bin interaction.
 proctype main_control() {
-	byte user_id;
 	// TODO: more bins!!
+	byte user_id;
 	byte bin_id;
+	bool valid_user;
+
 	do
+	
 	:: scan_card_user?user_id ->
-		//Verification of user card, and sending back whether or not ID is valid.
 		check_user!user_id;
-		user_valid?user_id;
-		//Open the door if the max capacity is not reached and the user ID is valid.
+		user_valid?user_id, valid_user;
 		if
-		:: user_valid ->
-			atomic{
+		:: valid_user ->
 			if 
 			:: !bin_status.full_capacity ->
 				can_deposit_trash!user_id, true;
 				change_bin!LockOuterDoor, open;
+			:: else ->
+           		can_deposit_trash!user_id, false;
 			fi
-			}
 		fi
 	//Lock the outer door after a single open/close action from the user
 	:: user_closed_outer_door?true ->
 		change_bin!LockOuterDoor, closed;
 		bin_changed?LockOuterDoor, true;
-	
-	//If the outer door has been locked, then we can weigh the trash
-	:: bin_status.lock_out_door == closed ->
 		weigh_trash!true;
+	//If the outer door has been locked, then we can weigh the trash
+	// :: bin_status.lock_out_door == closed ->
 		
 	//Logic is handled by the bin; the controller sends trap door isntructions.
 	:: trash_weighted?bin_status.trash_on_trap_door ->
@@ -333,6 +331,8 @@ proctype main_control() {
 						if
 							:: bin_status.trash_compressed >= max_capacity ->
 								bin_status.full_capacity = true;
+							:: else ->
+								bin_status.full_capacity = false;
 						fi
 					fi
 				fi
