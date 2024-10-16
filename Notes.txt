@@ -35,4 +35,3 @@ Abstract behaviour:
 2.1. Controller checks the weight status of the bin, and accordingly sends a message to the user [x]
 2.2. 
 
-controller must lock after a single open/close movement from the user (user_closed_outer_door!true;)

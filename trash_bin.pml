@@ -22,8 +22,15 @@
 
 // FORMULAS
 // Insert the LTL formulas here
-//ltl door1 { ... }
 
+// ltl ram1 { change_ram.idle U (bin_status.lock_out_door == closed && bin_status.out_door == closed )};
+// ltl ram2 {(change_ram.compress U bin_status.trash_in_outer_door == 0)};
+// ltl door1 {(bin_status.out_door == closed U bin_status.trash_in_outer_door == closed)};
+// ltl door2 {(bin_status.lock_out_door == closed U (bin_status.trap_door == open && bin_status.trash_on_trap_door > 0))};
+// ltl capacity1 {[](full_capacity -> <>!full_capacity)};
+// ltl user1 {[](<>!bin_status.trash_in_outer_door > 0)};
+// ltl user2 {[](bin_status.trash_in_outer_door > 0 -> <>can_deposit_trash)};
+// ltl truck1 {[request_truck!bin_id -> <> change_truck!arrived, bin_id]};
 
 // DATATYPES
 // Type for components
@@ -67,7 +74,7 @@ bool has_trash;
 
 // CHANNELS
 // Asynchronous channel to give command to doors and lock
-chan change_bin = [2] of { mtype:comp, mtype:pos };
+chan change_bin = [1] of { mtype:comp, mtype:pos };
 // Synchronous channel to acknowledge change in bin
 chan bin_changed = [0] of { mtype:comp, bool };
 // Synchronous channel to indicate that user closed the door
@@ -150,7 +157,7 @@ proctype bin(byte bin_id) {
 		:: bin_status.trap_door == closed ->
 			trash_weighted!bin_status.trash_on_trap_door;
 		fi
-	:: change_bin?TrapDoor, closed -> 
+	:: change_bin?TrapDoor, closed ->
 		if
 		:: bin_status.trap_door == open && bin_status.ram == idle ->
 			bin_status.trap_door = closed;
@@ -176,7 +183,7 @@ proctype bin(byte bin_id) {
 			bin_changed!TrapDoor, true;
 		fi
 	// Vertical ram
-	:: change_ram?compress -> //TODO: Ram control through controller.
+	:: change_ram?compress ->
 		if
 		:: bin_status.ram == idle ->
 			atomic {
@@ -200,7 +207,7 @@ proctype bin(byte bin_id) {
 			ram_changed!true;
 		fi
 	// Emptying through trash truck
-	:: empty_bin?true -> //TODO: Communicate to controller that trash needs emptying.
+	:: empty_bin?true ->
 		if
 		:: bin_status.out_door == closed && bin_status.lock_out_door == closed && bin_status.ram == idle ->
 			atomic {
@@ -249,7 +256,6 @@ proctype truck() {
 // User process type.
 // The user tries to deposit trash.
 proctype user(byte user_id; byte trash_size) {
-	byte bin_id;
 	do
 	// Get another bag of trash
 	:: !has_trash ->
@@ -284,75 +290,67 @@ proctype user(byte user_id; byte trash_size) {
 	od
 }
 
-//Main controller process for co-ordinating user-bin interaction.
+
+// DUMMY main control process type.
+// Remodel it to control the trash bin system and handle requests by users!
 proctype main_control() {
-	// TODO: more bins!!
 	byte user_id;
-	byte bin_id;
 	bool valid_user;
+	byte bin_id;
+	byte weight_Trap;
+	byte weight_Outer;
 
 	do
-	
 	:: scan_card_user?user_id ->
 		check_user!user_id;
 		user_valid?user_id, valid_user;
-		if
-		:: valid_user ->
-			if 
-			:: !bin_status.full_capacity ->
-				can_deposit_trash!user_id, true;
-				change_bin!LockOuterDoor, open;
-			:: else ->
-           		can_deposit_trash!user_id, false;
-			fi
-		fi
-	//Lock the outer door after a single open/close action from the user
-	:: user_closed_outer_door?true ->
-		change_bin!LockOuterDoor, closed;
-		bin_changed?LockOuterDoor, true;
-		weigh_trash!true;
-	//If the outer door has been locked, then we can weigh the trash
-	// :: bin_status.lock_out_door == closed ->
-		
-	//Logic is handled by the bin; the controller sends trap door isntructions.
-	:: trash_weighted?bin_status.trash_on_trap_door ->
 		if 
-		::bin_changed?TrapDoor, true ->
-			change_bin!TrapDoor, open;
-			if 
-			:: bin_changed?TrapDoor, true ->
-				change_ram!compress;		
-				if
-				::ram_changed?true ->
+		:: valid_user ->
+			can_deposit_trash!user_id, true;
+			change_bin!LockOuterDoor, open;
+			user_closed_outer_door?true ->
+			weight_Outer = bin_status.trash_in_outer_door;
+			if
+			:: weight_Outer > 0 ->
+				change_bin!LockOuterDoor, closed;
+				bin_changed?LockOuterDoor, true;
+				weigh_trash!true;
+				if 
+				:: trash_weighted?bin_status.trash_on_trap_door;
+					weight_Trap = bin_status.trash_on_trap_door;
+				fi
+				if 
+				:: weight_Trap > 0 ->
+					change_bin!TrapDoor, open;
+					bin_changed?TrapDoor, true;
+					change_ram!compress;
+					ram_changed?true;
 					change_ram!idle;
+					ram_changed?true
+					change_bin!TrapDoor, closed;
+					bin_changed?TrapDoor, true;
 					if
-					::ram_changed?true ->
-						change_bin!TrapDoor, closed;
-						if
-							:: bin_status.trash_compressed >= max_capacity ->
-								bin_status.full_capacity = true;
-							:: else ->
-								bin_status.full_capacity = false;
-						fi
+					:: bin_status.trash_compressed >= max_capacity ->
+						bin_status.full_capacity = true;
+						request_truck!bin_id;
+						change_truck?arrived, bin_id;
+						change_truck!start_emptying, bin_id;
+						change_truck?emptied, bin_id;
+						empty_bin!true;
+						bin_emptied?true;
+						bin_status.full_capacity = false;
+					:: else ->
+						bin_status.full_capacity = false;
 					fi
+				else ->
+				:: printf("ErrorTest")	
 				fi
 			fi
 		fi
-
-	//Truck controller
-	:: bin_status.full_capacity ->
-		request_truck!!bin_id;
-		if
-		:: change_truck?arrived ->
-			change_truck!start_emptying;
-			if 
-			::change_truck?emptied->
-				bin_status.full_capacity = false;
-				empty_bin!true;
-			fi
-		fi
+			
 	od
 }
+
 
 // Initial process that instantiates all other processes and
 // creates the initial trash bin situation.
