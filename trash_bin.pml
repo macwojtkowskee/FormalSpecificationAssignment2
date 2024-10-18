@@ -23,14 +23,14 @@
 // FORMULAS
 // Insert the LTL formulas here
 
-// ltl ram1 { change_ram.idle U (bin_status.lock_out_door == closed && bin_status.out_door == closed )};
-// ltl ram2 {(change_ram.compress U bin_status.trash_in_outer_door == 0)};
-// ltl door1 {(bin_status.out_door == closed U bin_status.trash_in_outer_door == closed)};
-// ltl door2 {(bin_status.lock_out_door == closed U (bin_status.trap_door == open && bin_status.trash_on_trap_door > 0))};
-// ltl capacity1 {[](full_capacity -> <>!full_capacity)};
-// ltl user1 {[](<>!bin_status.trash_in_outer_door > 0)};
-// ltl user2 {[](bin_status.trash_in_outer_door > 0 -> <>can_deposit_trash)};
-// ltl truck1 {[request_truck!bin_id -> <> change_truck!arrived, bin_id]};
+ltl ram1 {(bin_status.out_door == closed && bin_status.lock_out_door == closed) -> <>ram_moving}; //WORKS
+ltl ram2 {[](bin_status.trash_in_outer_door > 0 -> <>ram_moving)}; //DOESN'T WORK
+ltl door1 {(bin_status.out_door == closed U bin_status.trash_in_outer_door == 0 )}; //WORKS	
+ltl door2 {(bin_status.lock_out_door == open U (bin_status.trap_door == closed && bin_status.trash_on_trap_door == 0))}; //WORKS
+ltl capacity1 {[](bin_status.full_capacity -> <>!bin_status.full_capacity)}; //WORKS
+ltl user1 {[](<>!bin_status.trash_in_outer_door > 0)}; //WORKS
+ltl user2 {[](bin_status.trash_in_outer_door > 0 -> <>can_deposit_trash)}; //WORKS
+ltl truck1 {(truck_emptying_start -> <> truck_emptied)}; //WORKS
 
 // DATATYPES
 // Type for components
@@ -70,6 +70,14 @@ byte max_capacity;
 
 // User information
 bool has_trash;
+
+// Ram position variables
+bool ram_idle;
+bool ram_moving;
+
+// Truck variables
+bool truck_emptying_start;
+bool truck_emptied;
 
 
 // CHANNELS
@@ -245,10 +253,8 @@ proctype truck() {
 		// Drive to the trash bin
 		change_truck!arrived, bin_id;
 		// Empty the trash bin
-		if 
-		:: change_truck?start_emptying, bin_id ->
-			change_truck!emptied, bin_id;
-		fi
+		change_truck?start_emptying, bin_id ->
+		change_truck!emptied, bin_id;
 	od
 }
 
@@ -324,26 +330,35 @@ proctype main_control() {
 					change_bin!TrapDoor, open;
 					bin_changed?TrapDoor, true;
 					change_ram!compress;
+					ram_idle = false;
+					ram_moving = true;
 					ram_changed?true;
+					
 					change_ram!idle;
+					ram_idle = true;
+					ram_moving = false;
 					ram_changed?true
+					
 					change_bin!TrapDoor, closed;
 					bin_changed?TrapDoor, true;
 					if
 					:: bin_status.trash_compressed >= max_capacity ->
 						bin_status.full_capacity = true;
+						truck_emptied = false;
 						request_truck!bin_id;
+						truck_emptying_start = true;
 						change_truck?arrived, bin_id;
 						change_truck!start_emptying, bin_id;
 						change_truck?emptied, bin_id;
 						empty_bin!true;
+						truck_emptied = true;
 						bin_emptied?true;
 						bin_status.full_capacity = false;
 					:: else ->
 						bin_status.full_capacity = false;
 					fi
 				else ->
-				:: printf("ErrorTest")	
+				:: printf("Error")	//Lack of functionality for when there is no trash in the outer space after truck emptied!
 				fi
 			fi
 		fi
@@ -376,6 +391,15 @@ init {
 			bin_status.trap_destroyed = false;
 			max_capacity = 2;
 			run bin(proc);
+
+			//Ram variables:
+			ram_idle = true;
+			ram_moving = false;
+
+			//Truck variables:
+			truck_emptying_start = false;
+			truck_emptied = false;
+
 			proc++;
 		:: proc == NO_BINS ->
 			break;
