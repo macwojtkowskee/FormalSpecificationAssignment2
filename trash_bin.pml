@@ -28,7 +28,7 @@ ltl ram2 {[]((bin_status.ram == idle) -> (bin_status.trash_in_outer_door == 0 ||
 ltl door1 {(bin_status.out_door == closed U bin_status.trash_in_outer_door == 0 )}; //WORKS	
 ltl door2 {[](((bin_status.trap_door == closed &&  (bin_status.trash_on_trap_door == 0) && !process_weigh))-> <>(bin_status.lock_out_door == closed))}
 ltl capacity1 {[](bin_status.full_capacity -> <>!bin_status.full_capacity)}; //WORKS
-ltl user1 {[](<>!bin_status.trash_in_outer_door > 0)}; //WORKS
+ltl user1 {[](<>(!has_trash))};
 ltl user2 {[](bin_status.trash_in_outer_door > 0 -> <>can_deposit_trash)}; //WORKS
 ltl truck1 {[](truck_requested -> <>(truck_emptied))}; //WORKS
 

@@ -42,8 +42,8 @@ ltl capacity1_bin1 {[](bin_status[1].full_capacity -> <>!bin_status[1].full_capa
 ltl user1_bin0 {[](<>!bin_status[0].trash_in_outer_door > 0)};
 ltl user1_bin1 {[](<>!bin_status[1].trash_in_outer_door > 0)};
 
-ltl user2_bin0 {[](bin_status[0].trash_in_outer_door > 0 -> <>can_deposit_trash)};
-ltl user2_bin1 {[](bin_status[1].trash_in_outer_door > 0 -> <>can_deposit_trash)};
+ltl user2_bin0 {[](<>(!has_trash))};
+ltl user2_bin1 {[](<>(!has_trash))};
 
 ltl truck1_bin0 {[](truck_requested -> <>(truck_emptied))};
 ltl truck1_bin1 {[](truck_requested -> <>(truck_emptied))};
