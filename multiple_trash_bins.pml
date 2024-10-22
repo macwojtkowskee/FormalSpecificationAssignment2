@@ -23,14 +23,30 @@
 // FORMULAS
 // Insert the LTL formulas here
 
-// ltl ram1 {(bin_status[bin_id].out_door == closed && bin_status[bin_id].lock_out_door == closed) -> <>ram_moving}; //WORKS
-// ltl ram2 {[](bin_status[bin_id].trash_in_outer_door > 0 -> <>ram_moving)}; //DOESN'T WORK
-// ltl door1 {(bin_status[bin_id].out_door == closed U bin_status[bin_id].trash_in_outer_door == 0 )}; //WORKS	
-// ltl door2 {(bin_status[bin_id].lock_out_door == open U (bin_status[bin_id].trap_door == closed && bin_status[bin_id].trash_on_trap_door == 0))}; //WORKS
-// ltl capacity1 {[](bin_status[bin_id].full_capacity -> <>!bin_status[bin_id].full_capacity)}; //WORKS
-// ltl user1 {[](<>!bin_status[bin_id].trash_in_outer_door > 0)}; //WORKS
-// ltl user2 {[](bin_status[bin_id].trash_in_outer_door > 0 -> <>can_deposit_trash)}; //WORKS
-// ltl truck1 {(truck_emptying_start -> <> truck_emptied)}; //WORKS
+ltl ram1_bin0 {(bin_status[0].out_door == closed && bin_status[0].lock_out_door == closed) -> <>ram_moving};
+ltl ram1_bin1 {(bin_status[1].out_door == closed && bin_status[1].lock_out_door == closed) -> <>ram_moving};
+
+ltl ram2_bin0 {[](bin_status[0].trash_in_outer_door > 0 -> <>ram_moving)};
+ltl ram2_bin1 {[](bin_status[1].trash_in_outer_door > 0 -> <>ram_moving)};
+
+ltl door1_bin0 {(bin_status[0].out_door == closed U bin_status[0].trash_in_outer_door == 0)};
+ltl door1_bin1 {(bin_status[1].out_door == closed U bin_status[1].trash_in_outer_door == 0)};
+
+ltl door2_bin0 {(bin_status[0].lock_out_door == open U (bin_status[0].trap_door == closed && bin_status[0].trash_on_trap_door == 0))};
+ltl door2_bin1 {(bin_status[1].lock_out_door == open U (bin_status[1].trap_door == closed && bin_status[1].trash_on_trap_door == 0))};
+
+ltl capacity1_bin0 {[](bin_status[0].full_capacity -> <>!bin_status[0].full_capacity)};
+ltl capacity1_bin1 {[](bin_status[1].full_capacity -> <>!bin_status[1].full_capacity)};
+
+ltl user1_bin0 {[](<>!bin_status[0].trash_in_outer_door > 0)};
+ltl user1_bin1 {[](<>!bin_status[1].trash_in_outer_door > 0)};
+
+ltl user2_bin0 {[](bin_status[0].trash_in_outer_door > 0 -> <>can_deposit_trash)};
+ltl user2_bin1 {[](bin_status[1].trash_in_outer_door > 0 -> <>can_deposit_trash)};
+
+ltl truck1_bin0 {(truck_emptying_start -> <> truck_emptied)};
+ltl truck1_bin1 {(truck_emptying_start -> <> truck_emptied)};
+
 
 // DATATYPES
 // Type for components
