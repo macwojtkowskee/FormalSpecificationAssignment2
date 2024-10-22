@@ -24,13 +24,13 @@
 // Insert the LTL formulas here
 
 ltl ram1 {[]((bin_status.ram == compress) -> (bin_status.out_door == closed && bin_status.lock_out_door == closed))}; //WORKS
-//ltl ram2 {[](bin_status.trash_in_outer_door > 0 -> <>ram_moving)}; //DOESN'T WORK
-// ltl door1 {(bin_status.out_door == closed U bin_status.trash_in_outer_door == 0 )}; //WORKS	
-// ltl door2 {(bin_status.lock_out_door == open U (bin_status.trap_door == closed && bin_status.trash_on_trap_door == 0))}; //WORKS
-// ltl capacity1 {[](bin_status.full_capacity -> <>!bin_status.full_capacity)}; //WORKS
-// ltl user1 {[](<>!bin_status.trash_in_outer_door > 0)}; //WORKS
-// ltl user2 {[](bin_status.trash_in_outer_door > 0 -> <>can_deposit_trash)}; //WORKS
-// ltl truck1 {(truck_emptying_start -> <> truck_emptied)}; //WORKS
+ltl ram2 {[]((bin_status.ram == idle) -> (bin_status.trash_in_outer_door == 0 || bin_status.trash_uncompressed == 0 || bin_status.trash_on_trap_door == 0))}; 
+ltl door1 {(bin_status.out_door == closed U bin_status.trash_in_outer_door == 0 )}; //WORKS	
+ltl door2 {[](((bin_status.trap_door == closed &&  (bin_status.trash_on_trap_door == 0) && !process_weigh))-> <>(bin_status.lock_out_door == closed))}
+ltl capacity1 {[](bin_status.full_capacity -> <>!bin_status.full_capacity)}; //WORKS
+ltl user1 {[](<>!bin_status.trash_in_outer_door > 0)}; //WORKS
+ltl user2 {[](bin_status.trash_in_outer_door > 0 -> <>can_deposit_trash)}; //WORKS
+ltl truck1 {[](truck_requested -> <>(truck_emptied))}; //WORKS
 
 // DATATYPES
 // Type for components
@@ -59,7 +59,8 @@ typedef bin_t {
 	bool full_capacity;
 	bool trap_destroyed;
 }
-
+// LTL var
+bool process_weigh;
 
 // VARIABLES
 // Status of trash bin
@@ -72,7 +73,7 @@ byte max_capacity;
 bool has_trash;
 
 // Truck variables
-bool truck_emptying_start;
+bool truck_requested;
 bool truck_emptied;
 
 
@@ -219,6 +220,7 @@ proctype bin(byte bin_id) {
 				bin_status.trash_uncompressed = 0;
 			}
 			bin_emptied!true;
+			truck_emptied = true;
 		fi
 	od
 }
@@ -246,8 +248,10 @@ proctype truck() {
 	byte bin_id; 
 	do
 	:: request_truck?bin_id ->
+		truck_requested = true;
 		// Drive to the trash bin
 		change_truck!arrived, bin_id;
+		truck_requested = false;
 		// Empty the trash bin
 		change_truck?start_emptying, bin_id ->
 		change_truck!emptied, bin_id;
@@ -316,6 +320,7 @@ proctype main_control() {
 			:: weight_Outer > 0 ->
 				change_bin!LockOuterDoor, closed;
 				bin_changed?LockOuterDoor, true;
+				process_weigh = true;
 				weigh_trash!true;
 				if 
 				:: trash_weighted?bin_status.trash_on_trap_door;
@@ -323,6 +328,7 @@ proctype main_control() {
 				fi
 				if 
 				:: weight_Trap > 0 ->
+					truck_emptied = false;
 					change_bin!TrapDoor, open;
 					bin_changed?TrapDoor, true;
 					change_ram!compress;
@@ -333,6 +339,7 @@ proctype main_control() {
 					
 					change_bin!TrapDoor, closed;
 					bin_changed?TrapDoor, true;
+					process_weigh = false;
 					if
 					:: bin_status.trash_compressed >= max_capacity ->
 						bin_status.full_capacity = true;
